@@ -1,0 +1,1118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// section
+enum OrgStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  CANCELLED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum RoleKey {
+  SUPER_ADMIN
+  OWNER
+  GENERAL_MANAGER
+  PROPERTY_ADMIN
+  RECEPTIONIST
+  ACCOUNTANT
+  HOUSEKEEPING
+  RESTAURANT_MANAGER
+  WAITER
+  KITCHEN_STAFF
+  STORE_KEEPER
+  MAINTENANCE
+  CUSTOMER
+  CUSTOM
+}
+
+enum TokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  INVITE
+}
+
+enum CabanaStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  CLEANING
+  MAINTENANCE
+  INACTIVE
+}
+
+enum BookingType {
+  HOURLY
+  DAY_USE
+  OVERNIGHT
+  MULTI_NIGHT
+  PACKAGE
+  GROUP_BOOKING
+}
+
+enum BookingSource {
+  WEBSITE
+  WALK_IN
+  PHONE
+  ADMIN
+  PARTNER
+  BOOKING_CHANNEL
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+  EXPIRED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  REFUND_PENDING
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  ONLINE
+}
+
+enum PaymentRecordStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSED
+  REJECTED
+}
+
+enum ChargeType {
+  ROOM
+  EXTRA_GUEST
+  EXTRA_BED
+  EARLY_CHECKIN
+  LATE_CHECKOUT
+  SERVICE
+  RESTAURANT
+  TAX
+  SERVICE_CHARGE
+  DISCOUNT
+  CANCELLATION
+  OTHER
+}
+
+enum RateKind {
+  HOURLY
+  DAY_USE
+  OVERNIGHT
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+enum CleaningStatus {
+  DIRTY
+  IN_PROGRESS
+  CLEAN
+  INSPECTED
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  APPROVED
+  CANCELLED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  ROOM_SERVICE
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum StockTxType {
+  RECEIVE
+  ISSUE
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  READ
+}
+
+enum TxKind {
+  INCOME
+  EXPENSE
+}
+
+// section
+model Organization {
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  status          OrgStatus      @default(TRIAL)
+  email           String?
+  phone           String?
+  country         String         @default("LK")
+  currency        String         @default("LKR")
+  trialEndsAt     DateTime?
+  suspendedReason String?
+  onboardingDone  Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+  properties      Property[]
+  users           User[]
+  subscriptions   Subscription[]
+}
+
+model Property {
+  id                      String                   @id @default(cuid())
+  organizationId          String
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name                    String
+  slug                    String
+  parentPropertyId        String? // branches
+  parentProperty          Property?                @relation("Branches", fields: [parentPropertyId], references: [id])
+  branches                Property[]               @relation("Branches")
+  description             String?
+  address                 String?
+  city                    String?
+  country                 String                   @default("LK")
+  phone                   String?
+  email                   String?
+  timezone                String                   @default("Asia/Colombo")
+  currency                String                   @default("LKR")
+  latitude                Decimal?                 @db.Decimal(9, 6)
+  longitude               Decimal?                 @db.Decimal(9, 6)
+  isPublic                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  deletedAt               DateTime?
+  settings                PropertySetting?
+  userPropertyAssignments UserPropertyAssignment[]
+  cabanaTypes             CabanaType[]
+  cabanas                 Cabana[]
+  bookings                Booking[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model PropertySetting {
+  id                   String   @id @default(cuid())
+  propertyId           String   @unique
+  property             Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  checkInTime          String   @default("14:00")
+  checkOutTime         String   @default("11:00")
+  turnaroundMinutes    Int      @default(30) // buffer after each stay
+  holdMinutes          Int      @default(15)
+  taxPercent           Decimal  @default(0) @db.Decimal(5, 2)
+  serviceChargePercent Decimal  @default(0) @db.Decimal(5, 2)
+  depositPercent       Decimal  @default(30) @db.Decimal(5, 2)
+  minHours             Int      @default(1)
+  requireInspection    Boolean  @default(true)
+  cancellationPolicy   Json? // [{hoursBefore, chargePercent}]
+  extra                Json?
+  updatedAt            DateTime @updatedAt
+}
+
+model Permission {
+  id    String           @id @default(cuid())
+  key   String           @unique
+  label String
+  group String
+  roles RolePermission[]
+}
+
+model Role {
+  id             String           @id @default(cuid())
+  organizationId String? // null = system role
+  key            RoleKey
+  name           String
+  description    String?
+  isSystem       Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  permissions    RolePermission[]
+  users          User[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model User {
+  id               String                   @id @default(cuid())
+  organizationId   String? // null for SUPER_ADMIN / public customers
+  organization     Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email            String                   @unique
+  passwordHash     String
+  name             String
+  phone            String?
+  roleId           String
+  role             Role                     @relation(fields: [roleId], references: [id])
+  status           UserStatus               @default(PENDING)
+  emailVerifiedAt  DateTime?
+  twoFactorSecret  String?
+  twoFactorEnabled Boolean                  @default(false)
+  failedLogins     Int                      @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  deletedAt        DateTime?
+  properties       UserPropertyAssignment[]
+  sessions         Session[]
+  tokens           AuthToken[]
+
+  @@index([organizationId])
+}
+
+model UserPropertyAssignment {
+  userId     String
+  propertyId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, propertyId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      TokenType
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+}
+
+// section
+model Plan {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          String
+  priceMonthly  Decimal        @db.Decimal(12, 2)
+  priceYearly   Decimal        @db.Decimal(12, 2)
+  maxProperties Int            @default(1)
+  maxCabanas    Int            @default(10)
+  maxUsers      Int            @default(5)
+  features      Json           @default("{}")
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String                @id @default(cuid())
+  organizationId     String
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               Plan                  @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus    @default(TRIALING)
+  interval           BillingInterval       @default(MONTHLY)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean               @default(false)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  invoices           SubscriptionInvoice[]
+
+  @@index([organizationId])
+}
+
+model SubscriptionInvoice {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  number         String       @unique
+  amount         Decimal      @db.Decimal(12, 2)
+  currency       String       @default("LKR")
+  paidAt         DateTime?
+  dueAt          DateTime
+  createdAt      DateTime     @default(now())
+}
+
+// section
+model CabanaType {
+  id          String    @id @default(cuid())
+  propertyId  String
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  cabanas     Cabana[]
+
+  @@unique([propertyId, name])
+}
+
+model Amenity {
+  id             String          @id @default(cuid())
+  organizationId String
+  name           String
+  icon           String?
+  cabanas        CabanaAmenity[]
+
+  @@unique([organizationId, name])
+}
+
+model Cabana {
+  id               String                @id @default(cuid())
+  organizationId   String
+  propertyId       String
+  property         Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  typeId           String?
+  type             CabanaType?           @relation(fields: [typeId], references: [id])
+  code             String
+  name             String
+  description      String?
+  zone             String?
+  maxAdults        Int                   @default(2)
+  maxChildren      Int                   @default(0)
+  bedConfig        Json?
+  hourlyEnabled    Boolean               @default(true)
+  overnightEnabled Boolean               @default(true)
+  // Operational status â€” independent of reservations
+  status           CabanaStatus          @default(AVAILABLE)
+  cleaningStatus   CleaningStatus        @default(CLEAN)
+  featured         Boolean               @default(false)
+  sortOrder        Int                   @default(0)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  archivedAt       DateTime?
+  amenities        CabanaAmenity[]
+  images           CabanaImage[]
+  history          CabanaStatusHistory[]
+  ratePlans        RatePlan[]
+  bookingItems     BookingItem[]
+
+  @@unique([propertyId, code])
+  @@index([organizationId, propertyId])
+}
+
+model CabanaAmenity {
+  cabanaId  String
+  amenityId String
+  cabana    Cabana  @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  amenity   Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@id([cabanaId, amenityId])
+}
+
+model CabanaImage {
+  id        String  @id @default(cuid())
+  cabanaId  String
+  cabana    Cabana  @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  url       String
+  publicId  String?
+  alt       String?
+  sortOrder Int     @default(0)
+}
+
+model CabanaStatusHistory {
+  id          String        @id @default(cuid())
+  cabanaId    String
+  cabana      Cabana        @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  fromStatus  CabanaStatus?
+  toStatus    CabanaStatus
+  reason      String?
+  changedById String?
+  createdAt   DateTime      @default(now())
+
+  @@index([cabanaId, createdAt])
+}
+
+// section
+model RatePlan {
+  id                        String         @id @default(cuid())
+  organizationId            String
+  propertyId                String
+  cabanaId                  String? // null = applies to whole property
+  cabana                    Cabana?        @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  name                      String
+  kind                      RateKind
+  weekdayRate               Decimal        @db.Decimal(12, 2)
+  weekendRate               Decimal        @db.Decimal(12, 2)
+  holidayRate               Decimal?       @db.Decimal(12, 2)
+  extraAdultFee             Decimal        @default(0) @db.Decimal(12, 2)
+  extraChildFee             Decimal        @default(0) @db.Decimal(12, 2)
+  extraBedFee               Decimal        @default(0) @db.Decimal(12, 2)
+  includedAdults            Int            @default(2)
+  earlyCheckInFeePerHour    Decimal        @default(0) @db.Decimal(12, 2)
+  lateCheckOutFeePerHour    Decimal        @default(0) @db.Decimal(12, 2)
+  multiNightDiscountPercent Decimal        @default(0) @db.Decimal(5, 2)
+  isCorporate               Boolean        @default(false)
+  isActive                  Boolean        @default(true)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  seasonalRates             SeasonalRate[]
+
+  @@index([propertyId, kind])
+}
+
+model SeasonalRate {
+  id         String   @id @default(cuid())
+  ratePlanId String
+  ratePlan   RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+  name       String
+  startDate  DateTime @db.Date
+  endDate    DateTime @db.Date
+  multiplier Decimal  @default(1) @db.Decimal(6, 3)
+  isPeak     Boolean  @default(false)
+  priority   Int      @default(0)
+}
+
+model Holiday {
+  id         String   @id @default(cuid())
+  propertyId String
+  date       DateTime @db.Date
+  name       String
+
+  @@unique([propertyId, date])
+}
+
+model PromoCode {
+  id             String       @id @default(cuid())
+  organizationId String
+  propertyId     String?
+  code           String
+  type           DiscountType
+  value          Decimal      @db.Decimal(12, 2)
+  validFrom      DateTime?
+  validTo        DateTime?
+  maxUses        Int?
+  usedCount      Int          @default(0)
+  minAmount      Decimal?     @db.Decimal(12, 2)
+  isActive       Boolean      @default(true)
+
+  @@unique([organizationId, code])
+}
+
+model Package {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String
+  name           String
+  description    String?
+  price          Decimal  @db.Decimal(12, 2)
+  inclusions     Json?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// section
+model Guest {
+  id              String    @id @default(cuid())
+  organizationId  String
+  userId          String?
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  nationality     String?
+  idType          String? // NIC / PASSPORT
+  idNumber        String? // sensitive
+  isVip           Boolean   @default(false)
+  isBlacklisted   Boolean   @default(false)
+  blacklistReason String?
+  notes           String?
+  preferences     Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  bookings        Booking[]
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+// section
+model Booking {
+  id                 String                 @id @default(cuid())
+  organizationId     String
+  propertyId         String
+  property           Property               @relation(fields: [propertyId], references: [id])
+  reference          String                 @unique
+  guestId            String
+  guest              Guest                  @relation(fields: [guestId], references: [id])
+  type               BookingType
+  source             BookingSource
+  status             BookingStatus          @default(PENDING)
+  paymentStatus      PaymentStatus          @default(UNPAID)
+  startAt            DateTime
+  endAt              DateTime
+  adults             Int                    @default(1)
+  children           Int                    @default(0)
+  holdExpiresAt      DateTime?
+  subtotal           Decimal                @default(0) @db.Decimal(12, 2)
+  discountTotal      Decimal                @default(0) @db.Decimal(12, 2)
+  taxTotal           Decimal                @default(0) @db.Decimal(12, 2)
+  serviceChargeTotal Decimal                @default(0) @db.Decimal(12, 2)
+  total              Decimal                @default(0) @db.Decimal(12, 2)
+  paidTotal          Decimal                @default(0) @db.Decimal(12, 2)
+  depositRequired    Decimal                @default(0) @db.Decimal(12, 2)
+  promoCodeId        String?
+  priceSnapshot      Json?
+  specialRequests    String?
+  notes              String?
+  createdById        String?
+  checkedInAt        DateTime?
+  checkedOutAt       DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  items              BookingItem[]
+  history            BookingStatusHistory[]
+  charges            BookingCharge[]
+
+  @@index([organizationId, propertyId, startAt])
+  @@index([status, holdExpiresAt])
+}
+
+model BookingItem {
+  id             String   @id @default(cuid())
+  bookingId      String
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  organizationId String
+  cabanaId       String
+  cabana         Cabana   @relation(fields: [cabanaId], references: [id])
+  // Occupied interval [startAt, endAt) in UTC, INCLUDING turnaround buffer.
+  startAt        DateTime
+  endAt          DateTime
+  // true while the item blocks the cabana (pending hold / confirmed / in-house).
+  // Guarded by the DB exclusion constraint booking_item_no_overlap.
+  blocking       Boolean  @default(true)
+  price          Decimal  @db.Decimal(12, 2)
+
+  @@index([cabanaId, startAt, endAt])
+}
+
+model BookingStatusHistory {
+  id          String         @id @default(cuid())
+  bookingId   String
+  booking     Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fromStatus  BookingStatus?
+  toStatus    BookingStatus
+  note        String?
+  changedById String?
+  createdAt   DateTime       @default(now())
+
+  @@index([bookingId, createdAt])
+}
+
+model BookingCharge {
+  id          String     @id @default(cuid())
+  bookingId   String
+  booking     Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  type        ChargeType
+  description String
+  quantity    Decimal    @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal    @db.Decimal(12, 2)
+  amount      Decimal    @db.Decimal(12, 2)
+  createdById String?
+  createdAt   DateTime   @default(now())
+}
+
+// section
+model Payment {
+  id             String              @id @default(cuid())
+  organizationId String
+  bookingId      String?
+  orderId        String?
+  method         PaymentMethod
+  status         PaymentRecordStatus @default(PENDING)
+  amount         Decimal             @db.Decimal(12, 2)
+  currency       String              @default("LKR")
+  provider       String?
+  providerRef    String?
+  idempotencyKey String?
+  receiptNo      String?
+  receivedById   String?
+  paidAt         DateTime?
+  createdAt      DateTime            @default(now())
+  refunds        Refund[]
+
+  @@unique([provider, providerRef])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, bookingId])
+}
+
+model Refund {
+  id             String       @id @default(cuid())
+  organizationId String
+  paymentId      String
+  payment        Payment      @relation(fields: [paymentId], references: [id])
+  amount         Decimal      @db.Decimal(12, 2)
+  reason         String?
+  status         RefundStatus @default(PENDING)
+  approvedById   String?
+  createdAt      DateTime     @default(now())
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  organizationId String
+  bookingId      String?
+  number         String
+  total          Decimal  @db.Decimal(12, 2)
+  issuedAt       DateTime @default(now())
+  data           Json?
+
+  @@unique([organizationId, number])
+}
+
+model ExpenseCategory {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  expenses       Expense[]
+
+  @@unique([organizationId, name])
+}
+
+model Expense {
+  id             String          @id @default(cuid())
+  organizationId String
+  propertyId     String
+  categoryId     String
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id])
+  description    String
+  amount         Decimal         @db.Decimal(12, 2)
+  incurredOn     DateTime        @db.Date
+  createdById    String?
+  createdAt      DateTime        @default(now())
+  deletedAt      DateTime?
+
+  @@index([organizationId, propertyId, incurredOn])
+}
+
+model CashRegisterClosing {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String
+  businessDate   DateTime @db.Date
+  expectedCash   Decimal  @db.Decimal(12, 2)
+  countedCash    Decimal  @db.Decimal(12, 2)
+  closedById     String?
+  createdAt      DateTime @default(now())
+
+  @@unique([propertyId, businessDate])
+}
+
+// section
+model CleaningTask {
+  id             String         @id @default(cuid())
+  organizationId String
+  propertyId     String
+  cabanaId       String
+  bookingId      String?
+  status         CleaningStatus @default(DIRTY)
+  priority       TaskPriority   @default(NORMAL)
+  assignedToId   String?
+  checklist      Json?
+  dueAt          DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  inspection     Inspection?
+
+  @@index([organizationId, propertyId, status])
+}
+
+model Inspection {
+  id          String       @id @default(cuid())
+  taskId      String       @unique
+  task        CleaningTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  approved    Boolean
+  notes       String?
+  inspectorId String?
+  createdAt   DateTime     @default(now())
+}
+
+model MaintenanceRequest {
+  id             String            @id @default(cuid())
+  organizationId String
+  propertyId     String
+  cabanaId       String?
+  title          String
+  description    String?
+  priority       TaskPriority      @default(NORMAL)
+  status         MaintenanceStatus @default(OPEN)
+  assignedToId   String?
+  cost           Decimal?          @db.Decimal(12, 2)
+  completedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model LostFoundItem {
+  id             String    @id @default(cuid())
+  organizationId String
+  propertyId     String
+  description    String
+  foundAt        String?
+  claimedAt      DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+// section
+model MenuCategory {
+  id             String     @id @default(cuid())
+  organizationId String
+  propertyId     String
+  name           String
+  sortOrder      Int        @default(0)
+  items          MenuItem[]
+}
+
+model MenuItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  categoryId     String
+  category       MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  price          Decimal      @db.Decimal(12, 2)
+  isAvailable    Boolean      @default(true)
+  deletedAt      DateTime?
+}
+
+model RestaurantTable {
+  id             String @id @default(cuid())
+  organizationId String
+  propertyId     String
+  label          String
+  seats          Int    @default(4)
+
+  @@unique([propertyId, label])
+}
+
+model FoodOrder {
+  id             String      @id @default(cuid())
+  organizationId String
+  propertyId     String
+  number         String
+  type           OrderType
+  status         OrderStatus @default(PENDING)
+  tableId        String?
+  bookingId      String? // required for room charging; validated server-side
+  chargedToRoom  Boolean     @default(false)
+  subtotal       Decimal     @db.Decimal(12, 2)
+  discount       Decimal     @default(0) @db.Decimal(12, 2)
+  total          Decimal     @db.Decimal(12, 2)
+  createdById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          OrderItem[]
+
+  @@unique([propertyId, number])
+}
+
+model OrderItem {
+  id         String    @id @default(cuid())
+  orderId    String
+  order      FoodOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  name       String
+  quantity   Int
+  unitPrice  Decimal   @db.Decimal(12, 2)
+  notes      String?
+}
+
+// section
+model ProductCategory {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  products       Product[]
+
+  @@unique([organizationId, name])
+}
+
+model Product {
+  id             String             @id @default(cuid())
+  organizationId String
+  categoryId     String?
+  category       ProductCategory?   @relation(fields: [categoryId], references: [id])
+  sku            String
+  name           String
+  unit           String             @default("pcs")
+  minStock       Decimal            @default(0) @db.Decimal(12, 3)
+  avgCost        Decimal            @default(0) @db.Decimal(12, 2)
+  isIngredient   Boolean            @default(false)
+  deletedAt      DateTime?
+  transactions   StockTransaction[]
+
+  @@unique([organizationId, sku])
+}
+
+model Supplier {
+  id             String          @id @default(cuid())
+  organizationId String
+  name           String
+  phone          String?
+  email          String?
+  deletedAt      DateTime?
+  orders         PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id             String              @id @default(cuid())
+  organizationId String
+  propertyId     String
+  supplierId     String
+  supplier       Supplier            @relation(fields: [supplierId], references: [id])
+  number         String
+  status         PurchaseOrderStatus @default(DRAFT)
+  lines          Json
+  total          Decimal             @db.Decimal(12, 2)
+  createdAt      DateTime            @default(now())
+
+  @@unique([organizationId, number])
+}
+
+// section
+model StockTransaction {
+  id             String      @id @default(cuid())
+  organizationId String
+  propertyId     String
+  productId      String
+  product        Product     @relation(fields: [productId], references: [id])
+  type           StockTxType
+  quantity       Decimal     @db.Decimal(12, 3) // signed
+  unitCost       Decimal?    @db.Decimal(12, 2)
+  reference      String?
+  note           String?
+  createdById    String?
+  createdAt      DateTime    @default(now())
+
+  @@index([organizationId, propertyId, productId])
+}
+
+// section
+model Department {
+  id             String     @id @default(cuid())
+  organizationId String
+  name           String
+  employees      Employee[]
+
+  @@unique([organizationId, name])
+}
+
+model Employee {
+  id             String       @id @default(cuid())
+  organizationId String
+  propertyId     String?
+  userId         String?
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  employeeNo     String
+  name           String
+  phone          String?
+  position       String?
+  baseSalary     Decimal?     @db.Decimal(12, 2) // restricted
+  hiredOn        DateTime?    @db.Date
+  deletedAt      DateTime?
+  attendance     Attendance[]
+  leaves         Leave[]
+
+  @@unique([organizationId, employeeNo])
+}
+
+model Attendance {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime  @db.Date
+  clockIn    DateTime?
+  clockOut   DateTime?
+
+  @@unique([employeeId, date])
+}
+
+model Shift {
+  id             String   @id @default(cuid())
+  organizationId String
+  employeeId     String
+  startsAt       DateTime
+  endsAt         DateTime
+}
+
+model Leave {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  fromDate   DateTime    @db.Date
+  toDate     DateTime    @db.Date
+  reason     String?
+  status     LeaveStatus @default(PENDING)
+}
+
+// section
+model NotificationTemplate {
+  id             String              @id @default(cuid())
+  organizationId String?
+  event          String
+  channel        NotificationChannel
+  subject        String?
+  body           String
+
+  @@unique([organizationId, event, channel])
+}
+
+model Notification {
+  id             String              @id @default(cuid())
+  organizationId String?
+  userId         String?
+  channel        NotificationChannel
+  event          String
+  subject        String?
+  body           String
+  status         NotificationStatus  @default(QUEUED)
+  error          String?
+  createdAt      DateTime            @default(now())
+  readAt         DateTime?
+
+  @@index([organizationId, userId, createdAt])
+}
+
+model Review {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String
+  bookingId      String?  @unique
+  rating         Int
+  comment        String?
+  isPublished    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  entity         String
+  entityId       String?
+  meta           Json?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([entity, entityId])
+}

@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0e132e;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border: #e2e8f0;
+  --muted: #64748b;
+  --navy: #0e132e;
+  --teal: #0d9488;
+  --teal-600: #0f766e;
+  --danger: #dc2626;
+  --warn: #d97706;
+}
+.dark {
+  --background: #080b1e;
+  --foreground: #e6e9f5;
+  --surface: #0e132e;
+  --surface-2: #161c40;
+  --border: #232a55;
+  --muted: #94a3c4;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-navy: var(--navy);
+  --color-teal: var(--teal);
+  --color-teal-600: var(--teal-600);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-poppins), var(--font-inter), sans-serif;
+  --shadow-card: 0 1px 2px rgb(14 19 46 / 0.04), 0 4px 16px rgb(14 19 46 / 0.06);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+h1, h2, h3 { font-family: var(--font-heading); }
+
+dialog::backdrop { background: rgb(8 11 30 / 0.55); backdrop-filter: blur(2px); }
